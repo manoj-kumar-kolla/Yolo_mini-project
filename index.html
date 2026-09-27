@@ -164,10 +164,11 @@
   <div id="status">👁 No Hand</div>
   <div id="particle-count">0 particles</div>
   <div id="instructions">
-    ✋ Open hand → hold fireball &nbsp;|&nbsp;
+    ✋ Open hand → fireball on palm &nbsp;|&nbsp;
     🤏 Pinch → resize &nbsp;|&nbsp;
+    ☝️ One finger → candle &nbsp;|&nbsp;
     👊 Fast fist snap → THROW &nbsp;|&nbsp;
-    Slow fist → snuff out
+    Slow fist → snuff
   </div>
 </div>
 
@@ -180,6 +181,8 @@ const THUMB_TIP   = 4;
 const INDEX_TIP   = 8;
 const FINGER_TIPS = [8, 12, 16, 20];
 const FINGER_PIPS = [6, 10, 14, 18];
+// Palm center landmarks: wrist + 4 MCP knuckles
+const PALM_IDS    = [0, 5, 9, 13, 17];
 
 const MIN_RADIUS = 15, MAX_RADIUS = 80;
 const THROW_SPEED_THRESHOLD = 550;
@@ -188,7 +191,7 @@ const GRAVITY      = 950;
 const PARTICLE_CAP = 450;
 const EMIT_RATE    = 3;
 
-// ── Flame colour gradient ────────────────────────────────────────────────────
+// ── Fireball colour gradient ──────────────────────────────────────────────────
 const STOPS = [
   [1.00, [255, 255, 255]],
   [0.80, [255, 255, 180]],
@@ -198,18 +201,32 @@ const STOPS = [
   [0.00, [ 10,  10,  10]],
 ];
 
-function flameColor(t) {
-  t = Math.max(0, Math.min(1, t));
-  for (let i = 0; i < STOPS.length - 1; i++) {
-    const [t0, c0] = STOPS[i];
-    const [t1, c1] = STOPS[i + 1];
-    if (t >= t1 && t <= t0) {
-      const f = (t - t1) / (t0 - t1 + 1e-6);
-      return c1.map((v, k) => v + (c0[k] - v) * f);
+function makeColorFn(stops) {
+  return function(t) {
+    t = Math.max(0, Math.min(1, t));
+    for (let i = 0; i < stops.length - 1; i++) {
+      const [t0, c0] = stops[i];
+      const [t1, c1] = stops[i + 1];
+      if (t >= t1 && t <= t0) {
+        const f = (t - t1) / (t0 - t1 + 1e-6);
+        return c1.map((v, k) => v + (c0[k] - v) * f);
+      }
     }
-  }
-  return STOPS.at(-1)[1].slice();
+    return stops.at(-1)[1].slice();
+  };
 }
+
+const flameColor  = makeColorFn(STOPS);
+
+// ── Candle colour gradient (blue base → gold → ivory tip) ────────────────────
+const CANDLE_STOPS = [
+  [1.00, [255, 255, 220]],   // ivory white tip
+  [0.70, [255, 210,  60]],   // golden yellow
+  [0.40, [255, 130,  10]],   // warm orange
+  [0.18, [ 80,  60, 240]],   // blue inner cone
+  [0.00, [ 15,   8,  80]],   // deep violet base
+];
+const candleColor = makeColorFn(CANDLE_STOPS);
 
 function rgbaStr([r, g, b], a) {
   return `rgba(${r | 0},${g | 0},${b | 0},${a.toFixed(3)})`;
@@ -229,11 +246,12 @@ function splat(ctx, x, y, radius, color, alpha) {
 
 // ── Particle ─────────────────────────────────────────────────────────────────
 class Particle {
-  constructor(x, y, vx, vy, life, r0) {
+  constructor(x, y, vx, vy, life, r0, colorFn = flameColor) {
     this.x = x; this.y = y;
     this.vx = vx; this.vy = vy;
     this.life = this.maxLife = life;
     this.r0 = r0;
+    this.colorFn = colorFn;
     this.phase = Math.random() * Math.PI * 2;
   }
   update(dt, t) {
@@ -249,7 +267,7 @@ class Particle {
     const t      = Math.max(0, this.life / this.maxLife);
     const radius = this.r0 * (0.3 + 0.7 * t);
     const alpha  = Math.pow(t, 0.6);
-    splat(ctx, this.x, this.y, radius, flameColor(t), alpha);
+    splat(ctx, this.x, this.y, radius, this.colorFn(t), alpha);
   }
 }
 
@@ -316,6 +334,30 @@ function isFist(lm) {
   for (let i = 0; i < FINGER_TIPS.length; i++)
     if (lm[FINGER_TIPS[i]].y < lm[FINGER_PIPS[i]].y) return false;
   return true;
+}
+
+// Only index finger extended, rest curled → candle mode
+function isOneFingerUp(lm) {
+  if (lm[FINGER_TIPS[0]].y >= lm[FINGER_PIPS[0]].y) return false; // index must be up
+  for (let i = 1; i < FINGER_TIPS.length; i++)
+    if (lm[FINGER_TIPS[i]].y < lm[FINGER_PIPS[i]].y) return false; // others must be curled
+  return true;
+}
+
+// Palm center: average of wrist + 4 MCP knuckles (normalized coords)
+function palmCenter(lm) {
+  const x = PALM_IDS.reduce((s, i) => s + lm[i].x, 0) / PALM_IDS.length;
+  const y = PALM_IDS.reduce((s, i) => s + lm[i].y, 0) / PALM_IDS.length;
+  return { x, y };
+}
+
+// Candle core: blue base → golden middle → ivory tip (teardrop shape)
+function drawCandleCore(ctx, x, y, r) {
+  splat(ctx, x,           y,           r * 0.35, [ 60,  40, 255], 0.70); // blue base
+  splat(ctx, x,           y,           r * 0.20, [180, 160, 255], 0.90); // bright blue
+  splat(ctx, x,           y - r * 0.5, r * 0.50, [255, 180,  20], 0.55); // golden middle
+  splat(ctx, x,           y - r * 0.9, r * 0.35, [255, 240, 180], 0.75); // ivory tip
+  splat(ctx, x,           y - r * 0.9, r * 0.18, [255, 255, 255], 0.95); // white hot point
 }
 
 const lerp  = (a, b, t) => a + (b - a) * t;
@@ -392,6 +434,8 @@ async function main() {
   let prevSX  = null, prevSY  = null;
   let velX = 0, velY = 0;
   let holding     = false;
+  let candleOn    = false;   // candle mode active
+  let candleX = 0, candleY = 0;
   let lastTime    = performance.now();
   let lastVidTime = -1;
 
@@ -431,16 +475,27 @@ async function main() {
       if (result.landmarks && result.landmarks.length > 0) {
         const lm   = result.landmarks[0];
         const fist = isFist(lm);
+        const oneUp = isOneFingerUp(lm);
 
-        if (!fist) {
-          const thumb = lm[THUMB_TIP], idx = lm[INDEX_TIP];
+        if (oneUp) {
+          // ── Candle mode: index fingertip ────────────────────────────────
+          candleX  = lmToCanvasX(lm[INDEX_TIP].x);
+          candleY  = lmToCanvasY(lm[INDEX_TIP].y);
+          candleOn = true;
+          holding  = false;
+          prevSX   = prevSY = null;
+          status   = 'candle';
+        } else if (!fist) {
+          // ── Fireball mode: palm center ──────────────────────────────────
+          candleOn = false;
+          const pc = palmCenter(lm);
+          const cx = lmToCanvasX(pc.x);
+          const cy = lmToCanvasY(pc.y);
 
-          // Map landmarks through cover-crop + mirror — fireball sits on hand
-          const cx = lmToCanvasX((thumb.x + idx.x) / 2);
-          const cy = lmToCanvasY((thumb.y + idx.y) / 2);
-
-          // Pinch distance: use normalised coords, scale by canvas short-side
-          const pdNorm = Math.hypot(thumb.x - idx.x, thumb.y - idx.y);
+          const pdNorm = Math.hypot(
+            lm[THUMB_TIP].x - lm[INDEX_TIP].x,
+            lm[THUMB_TIP].y - lm[INDEX_TIP].y
+          );
           const base   = Math.min(W, H);
           const minR   = base * 0.05;
           const maxR   = base * 0.20;
@@ -462,7 +517,9 @@ async function main() {
           holding = true;
           status  = 'holding';
         } else {
-          holding = false;
+          // ── Fist: throw or snuff ────────────────────────────────────────
+          candleOn = false;
+          holding  = false;
           if (prevHolding && prevSX !== null) {
             const speed = Math.hypot(velX, velY);
             if (speed > THROW_SPEED_THRESHOLD) {
@@ -477,8 +534,9 @@ async function main() {
           prevSX = prevSY = null;
         }
       } else {
-        holding = false;
-        prevSX = prevSY = null;
+        holding  = false;
+        candleOn = false;
+        prevSX   = prevSY = null;
       }
     }
 
@@ -508,6 +566,25 @@ async function main() {
         }
       }
       drawCore(fxCtx, smoothX, smoothY, smoothR);
+    }
+
+    // Candle flame: small delicate particles at fingertip
+    if (candleOn) {
+      const cr = Math.min(W, H) * 0.04;  // candle flame radius
+      for (let i = 0; i < 2; i++) {
+        if (particles.length < particleCap) {
+          particles.push(new Particle(
+            candleX + (Math.random() - 0.5) * cr * 0.3,
+            candleY + (Math.random() - 0.5) * cr * 0.2,
+            (Math.random() - 0.5) * 12,        // gentle drift
+            -55 + Math.random() * 20,           // rises upward
+            0.25 + Math.random() * 0.25,
+            cr * 0.4,
+            candleColor,                        // blue-gold gradient
+          ));
+        }
+      }
+      drawCandleCore(fxCtx, candleX, candleY, cr);
     }
 
     // Particles
@@ -547,6 +624,7 @@ async function main() {
       holding: ['🔥 Holding',  'holding'],
       thrown:  ['💥 Thrown!',  'thrown'],
       snuffed: ['💨 Snuffed',  'snuffed'],
+      candle:  ['🕯 Candle',   'holding'],
       fist:    ['✊ Fist',     ''],
       nohand:  ['👁 No Hand',  ''],
     };
