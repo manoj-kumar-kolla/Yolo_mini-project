@@ -405,6 +405,22 @@ async function main() {
     const W  = mainCanvas.width;
     const H  = mainCanvas.height;
 
+    // ── Cover-mode video geometry ──────────────────────────────────────────
+    // Compute source-crop so the video fills the canvas without distortion
+    // (same as CSS object-fit:cover).  Landmarks are then mapped through the
+    // same crop so the fireball sits exactly over the detected hand.
+    const vw = video.videoWidth  || W;
+    const vh = video.videoHeight || H;
+    const vidScale = Math.max(W / vw, H / vh);
+    const srcW = W / vidScale;                   // source crop width  (px)
+    const srcH = H / vidScale;                   // source crop height (px)
+    const srcX = (vw - srcW) / 2;               // source crop x offset
+    const srcY = (vh - srcH) / 2;               // source crop y offset
+
+    // Convert normalised landmark coord → canvas pixel (cover + mirror)
+    const lmToCanvasX = nx => W * (1 - (nx * vw - srcX) / srcW);
+    const lmToCanvasY = ny => H *      (ny * vh - srcY) / srcH;
+
     let prevHolding = holding;
     let status = 'nohand';
 
@@ -418,24 +434,25 @@ async function main() {
 
         if (!fist) {
           const thumb = lm[THUMB_TIP], idx = lm[INDEX_TIP];
-          // Mirror X to match the horizontally-flipped video
-          const cx = (1 - (thumb.x + idx.x) / 2) * W;
-          const cy =      (thumb.y + idx.y) / 2   * H;
 
-          // Use normalised pinch distance (0-1) so sizing is screen-independent
+          // Map landmarks through cover-crop + mirror — fireball sits on hand
+          const cx = lmToCanvasX((thumb.x + idx.x) / 2);
+          const cy = lmToCanvasY((thumb.y + idx.y) / 2);
+
+          // Pinch distance: use normalised coords, scale by canvas short-side
           const pdNorm = Math.hypot(thumb.x - idx.x, thumb.y - idx.y);
-          const base   = Math.min(W, H);               // reference dimension
-          const minR   = base * 0.04;                   // ~4% of short side
-          const maxR   = base * 0.18;                   // ~18% of short side
-          // pdNorm range: ~0.03 (pinched) … ~0.25 (fully spread)
+          const base   = Math.min(W, H);
+          const minR   = base * 0.05;
+          const maxR   = base * 0.20;
           const tR = clamp(
             minR + (pdNorm - 0.03) / (0.25 - 0.03) * (maxR - minR),
             minR, maxR
           );
 
-          smoothX = smoothX === null ? cx : lerp(smoothX, cx, 0.4);
-          smoothY = smoothY === null ? cy : lerp(smoothY, cy, 0.4);
-          smoothR = smoothR === 0 ? tR : lerp(smoothR, tR, 0.3);
+          // High lerp factor (0.8) = near-instant tracking, almost no lag
+          smoothX = smoothX === null ? cx : lerp(smoothX, cx, 0.8);
+          smoothY = smoothY === null ? cy : lerp(smoothY, cy, 0.8);
+          smoothR = smoothR === 0    ? tR : lerp(smoothR, tR, 0.5);
 
           if (prevSX !== null) {
             velX = (smoothX - prevSX) / dt;
@@ -465,11 +482,11 @@ async function main() {
       }
     }
 
-    // Draw mirrored video
+    // Draw video in cover-mode (no distortion, centered crop)
     mainCtx.save();
     mainCtx.translate(W, 0);
     mainCtx.scale(-1, 1);
-    mainCtx.drawImage(video, 0, 0, W, H);
+    mainCtx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, W, H);
     mainCtx.restore();
 
     // Clear FX canvas
@@ -483,10 +500,10 @@ async function main() {
           particles.push(new Particle(
             smoothX + (Math.random() - 0.5) * smoothR * 0.6,
             smoothY + (Math.random() - 0.5) * smoothR * 0.6,
-            (Math.random() - 0.5) * 40,
-            -90 + Math.random() * 60,
-            0.3 + Math.random() * 0.3,
-            smoothR * 0.5,
+            (Math.random() - 0.5) * 55,
+            -110 + Math.random() * 70,
+            0.35 + Math.random() * 0.35,
+            smoothR * 0.55,
           ));
         }
       }
