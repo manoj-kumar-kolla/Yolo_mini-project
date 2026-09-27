@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#000000" />
   <title>🔥 Gesture Fireball</title>
   <meta name="description" content="Control a fireball with hand gestures — open hand to hold, pinch to resize, fast fist snap to throw!" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -258,13 +262,14 @@ class Projectile {
     this.life = 1.6;
     this.alive = true;
   }
-  update(dt, W, H, particles) {
+  update(dt, W, H, particles, cap = PARTICLE_CAP) {
+    this.cap = cap;
     this.vy += GRAVITY * dt;
     this.x  += this.vx * dt;
     this.y  += this.vy * dt;
     this.life -= dt;
     for (let i = 0; i < 2; i++) {
-      if (particles.length < PARTICLE_CAP) {
+      if (particles.length < this.cap) {
         particles.push(new Particle(
           this.x + (Math.random() - 0.5) * 8,
           this.y + (Math.random() - 0.5) * 8,
@@ -357,7 +362,14 @@ async function main() {
   loadingMsg.textContent = 'Requesting camera access…';
   let stream;
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'user',
+        width:  { ideal: 1280 },
+        height: { ideal: 720 },
+      },
+      audio: false,
+    });
   } catch {
     loadingMsg.textContent = '❌ Camera access denied — please allow camera and reload.';
     return;
@@ -369,10 +381,14 @@ async function main() {
   loadingEl.classList.add('hidden');
   setTimeout(() => loadingEl.remove(), 700);
 
+  // Tune particle cap for mobile (keep 60fps)
+  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  const particleCap = isMobile ? 220 : PARTICLE_CAP;
+
   // State
   let particles   = [];
   let projectiles = [];
-  let smoothX = null, smoothY = null, smoothR = 40;
+  let smoothX = null, smoothY = null, smoothR = 0;
   let prevSX  = null, prevSY  = null;
   let velX = 0, velY = 0;
   let holding     = false;
@@ -402,17 +418,24 @@ async function main() {
 
         if (!fist) {
           const thumb = lm[THUMB_TIP], idx = lm[INDEX_TIP];
-          const cx = (thumb.x + idx.x) / 2 * W;
-          const cy = (thumb.y + idx.y) / 2 * H;
-          const pd = Math.hypot((thumb.x - idx.x) * W, (thumb.y - idx.y) * H);
+          // Mirror X to match the horizontally-flipped video
+          const cx = (1 - (thumb.x + idx.x) / 2) * W;
+          const cy =      (thumb.y + idx.y) / 2   * H;
+
+          // Use normalised pinch distance (0-1) so sizing is screen-independent
+          const pdNorm = Math.hypot(thumb.x - idx.x, thumb.y - idx.y);
+          const base   = Math.min(W, H);               // reference dimension
+          const minR   = base * 0.04;                   // ~4% of short side
+          const maxR   = base * 0.18;                   // ~18% of short side
+          // pdNorm range: ~0.03 (pinched) … ~0.25 (fully spread)
           const tR = clamp(
-            MIN_RADIUS + (pd - 20) / (220 - 20) * (MAX_RADIUS - MIN_RADIUS),
-            MIN_RADIUS, MAX_RADIUS
+            minR + (pdNorm - 0.03) / (0.25 - 0.03) * (maxR - minR),
+            minR, maxR
           );
 
           smoothX = smoothX === null ? cx : lerp(smoothX, cx, 0.4);
           smoothY = smoothY === null ? cy : lerp(smoothY, cy, 0.4);
-          smoothR = lerp(smoothR, tR, 0.3) | 0;
+          smoothR = smoothR === 0 ? tR : lerp(smoothR, tR, 0.3);
 
           if (prevSX !== null) {
             velX = (smoothX - prevSX) / dt;
@@ -456,7 +479,7 @@ async function main() {
     // Emit + draw core
     if (holding && smoothX !== null) {
       for (let i = 0; i < EMIT_RATE; i++) {
-        if (particles.length < PARTICLE_CAP) {
+        if (particles.length < particleCap) {
           particles.push(new Particle(
             smoothX + (Math.random() - 0.5) * smoothR * 0.6,
             smoothY + (Math.random() - 0.5) * smoothR * 0.6,
@@ -480,7 +503,7 @@ async function main() {
     // Projectiles
     const surviving = [];
     for (const proj of projectiles) {
-      proj.update(dt, W, H, particles);
+      proj.update(dt, W, H, particles, particleCap);
       if (proj.alive) { proj.draw(fxCtx); surviving.push(proj); }
       else spawnExplosion(particles, proj.x, proj.y);
     }
