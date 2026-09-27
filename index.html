@@ -7,168 +7,108 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#000000" />
-  <title>🔥 Gesture Fireball</title>
-  <meta name="description" content="Control a fireball with hand gestures — open hand to hold, pinch to resize, fast fist snap to throw!" />
+  <title>🔥 Gesture FX</title>
+  <meta name="description" content="Control fire, candles and lightning with hand gestures using your webcam." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; overflow: hidden; font-family: 'Inter', system-ui, sans-serif; color: #fff; width: 100vw; height: 100vh; }
 
-    body {
-      background: #000;
-      overflow: hidden;
-      font-family: 'Inter', system-ui, sans-serif;
-      color: #fff;
-      width: 100vw;
-      height: 100vh;
-    }
-
-    /* ── Loading screen ───────────────────────────────────────────────── */
+    /* Loading */
     #loading {
-      position: fixed;
-      inset: 0;
+      position: fixed; inset: 0;
       background: radial-gradient(ellipse at 50% 60%, #1c0800 0%, #000 70%);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 28px;
-      z-index: 200;
-      transition: opacity 0.6s ease;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px;
+      z-index: 200; transition: opacity 0.6s ease;
     }
     #loading.hidden { opacity: 0; pointer-events: none; }
-
     .fire-title {
-      font-size: clamp(1.8rem, 5vw, 3rem);
-      font-weight: 700;
+      font-size: clamp(2rem, 6vw, 3.5rem); font-weight: 700;
       background: linear-gradient(135deg, #ff4500 0%, #ff8c00 45%, #ffd700 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      letter-spacing: -0.02em;
-      animation: pulse 2s ease-in-out infinite;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      letter-spacing: -.02em; animation: pulse 2s ease-in-out infinite;
     }
-    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.7; } }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.65} }
+    .spinner { width: 48px; height: 48px; border: 3px solid rgba(255,120,0,.15); border-top-color: #ff6b00; border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+    #loading-msg { color: rgba(255,255,255,.45); font-size: .875rem; letter-spacing: .04em; }
 
-    .spinner {
-      width: 48px; height: 48px;
-      border: 3px solid rgba(255,120,0,.15);
-      border-top-color: #ff6b00;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    /* Canvases */
+    #video, #fxLayer { display: none; }
+    #main-canvas { display: block; width: 100%; height: 100%; }
 
-    #loading-msg {
-      color: rgba(255,255,255,.45);
-      font-size: .875rem;
-      letter-spacing: .04em;
-    }
-
-    /* ── Canvas ───────────────────────────────────────────────────────── */
-    #video   { display: none; }
-    #fxLayer { display: none; }
-
-    #main-canvas {
-      display: block;
-      width: 100%;
-      height: 100%;
-    }
-
-    /* ── HUD ──────────────────────────────────────────────────────────── */
-    #hud {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 10;
-    }
+    /* HUD */
+    #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
 
     #status {
-      position: absolute;
-      top: 18px; left: 18px;
-      background: rgba(0,0,0,.55);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      border: 1px solid rgba(255,100,0,.35);
-      border-radius: 100px;
-      padding: 8px 20px;
-      font-size: 13px;
-      font-weight: 600;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      color: #ff7b00;
-      transition: color .25s, border-color .25s;
+      position: absolute; top: 18px; left: 18px;
+      background: rgba(0,0,0,.6); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,100,0,.4); border-radius: 100px;
+      padding: 8px 22px; font-size: 13px; font-weight: 600;
+      letter-spacing: .08em; text-transform: uppercase; color: #ff7b00;
+      transition: color .2s, border-color .2s, background .2s;
     }
-    #status.holding { color: #ffe566; border-color: rgba(255,229,102,.55); }
-    #status.thrown  { color: #fff;    border-color: rgba(255,255,255,.55); }
-    #status.snuffed { color: #aaa;    border-color: rgba(180,180,180,.4);  }
+    #status.holding   { color: #ffe566; border-color: rgba(255,229,102,.6); }
+    #status.lightning { color: #9ad4ff; border-color: rgba(120,200,255,.6); background: rgba(10,20,60,.7); }
+    #status.candle    { color: #ffd280; border-color: rgba(255,200,80,.5); }
+    #status.thrown    { color: #fff;    border-color: rgba(255,255,255,.6); }
+    #status.snuffed   { color: #888;    border-color: rgba(150,150,150,.35); }
 
     #particle-count {
-      position: absolute;
-      top: 18px; right: 18px;
-      background: rgba(0,0,0,.45);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 1px solid rgba(255,255,255,.1);
-      border-radius: 100px;
-      padding: 8px 16px;
-      font-size: 12px;
-      color: rgba(255,255,255,.35);
+      position: absolute; top: 18px; right: 18px;
+      background: rgba(0,0,0,.45); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,.1); border-radius: 100px;
+      padding: 8px 16px; font-size: 12px; color: rgba(255,255,255,.35);
       font-variant-numeric: tabular-nums;
     }
 
+    #gesture-guide {
+      position: absolute; bottom: 80px; left: 18px;
+      background: rgba(0,0,0,.55); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,.1); border-radius: 14px;
+      padding: 12px 16px; display: flex; flex-direction: column; gap: 7px;
+    }
+    .gr { display: flex; align-items: center; gap: 10px; font-size: 12px; color: rgba(255,255,255,.55); }
+    .gr span.icon { font-size: 18px; line-height: 1; }
+    @media (max-width: 500px) { #gesture-guide { display: none; } }
+
     #instructions {
-      position: absolute;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,.5);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255,100,0,.2);
-      border-radius: 14px;
-      padding: 10px 22px;
-      font-size: 12px;
-      color: rgba(255,255,255,.5);
-      text-align: center;
-      white-space: nowrap;
+      position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,.5); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,100,0,.18); border-radius: 14px;
+      padding: 10px 22px; font-size: 12px; color: rgba(255,255,255,.45);
+      text-align: center; white-space: nowrap;
     }
-    @media (max-width: 600px) {
-      #instructions {
-        white-space: normal;
-        font-size: 11px;
-        width: 90%;
-        padding: 10px 14px;
-      }
-    }
+    @media (max-width: 600px) { #instructions { white-space: normal; font-size: 11px; width: 90%; padding: 10px 14px; } }
+
+    #flash { position: fixed; inset: 0; background: #fff; pointer-events: none; opacity: 0; z-index: 100; }
   </style>
 </head>
 <body>
 
-<!-- Loading overlay -->
 <div id="loading">
-  <div class="fire-title">🔥 Gesture Fireball</div>
+  <div class="fire-title">🔥 Gesture FX</div>
   <div class="spinner"></div>
   <div id="loading-msg">Loading hand-tracking model…</div>
 </div>
 
-<!-- Hidden video + offscreen fx canvas -->
+<div id="flash"></div>
 <video id="video" autoplay playsinline muted></video>
 <canvas id="fxLayer"></canvas>
-
-<!-- Main visible canvas -->
 <canvas id="main-canvas"></canvas>
 
-<!-- HUD -->
 <div id="hud">
   <div id="status">👁 No Hand</div>
   <div id="particle-count">0 particles</div>
+  <div id="gesture-guide">
+    <div class="gr"><span class="icon">✋</span><span>Open hand → Fireball</span></div>
+    <div class="gr"><span class="icon">☝️</span><span>One finger → Candle</span></div>
+    <div class="gr"><span class="icon">✌️</span><span>Two fingers → Lightning</span></div>
+    <div class="gr"><span class="icon">👊</span><span>Fast fist → Throw | Slow → Snuff</span></div>
+  </div>
   <div id="instructions">
-    ✋ Open hand → fireball on palm &nbsp;|&nbsp;
-    🤏 Pinch → resize &nbsp;|&nbsp;
-    ☝️ One finger → candle &nbsp;|&nbsp;
-    👊 Fast fist snap → THROW &nbsp;|&nbsp;
-    Slow fist → snuff
+    ✋ Fireball &nbsp;|&nbsp; ☝️ Candle &nbsp;|&nbsp; ✌️ Lightning &nbsp;|&nbsp; 👊 Throw / Snuff
   </div>
 </div>
 
@@ -179,34 +119,32 @@ import { HandLandmarker, FilesetResolver }
 // ── Constants ────────────────────────────────────────────────────────────────
 const THUMB_TIP   = 4;
 const INDEX_TIP   = 8;
+const MIDDLE_TIP  = 12;
 const FINGER_TIPS = [8, 12, 16, 20];
 const FINGER_PIPS = [6, 10, 14, 18];
-// Palm center landmarks: wrist + 4 MCP knuckles
 const PALM_IDS    = [0, 5, 9, 13, 17];
 
-const MIN_RADIUS = 15, MAX_RADIUS = 80;
-const THROW_SPEED_THRESHOLD = 550;
-const THROW_MULT   = 1.15;
-const GRAVITY      = 950;
-const PARTICLE_CAP = 450;
-const EMIT_RATE    = 3;
-
-// ── Fireball colour gradient ──────────────────────────────────────────────────
-const STOPS = [
-  [1.00, [255, 255, 255]],
-  [0.80, [255, 255, 180]],
-  [0.55, [255, 200,   0]],
-  [0.30, [255,  90,   0]],
-  [0.10, [160,  20,   0]],
-  [0.00, [ 10,  10,  10]],
+const HAND_CONNECTIONS = [
+  [0,1],[1,2],[2,3],[3,4],
+  [0,5],[5,6],[6,7],[7,8],
+  [5,9],[9,10],[10,11],[11,12],
+  [9,13],[13,14],[14,15],[15,16],
+  [13,17],[17,18],[18,19],[19,20],
+  [0,17],
 ];
 
+const THROW_SPEED_THRESHOLD = 500;
+const THROW_MULT = 1.15;
+const GRAVITY    = 950;
+const PARTICLE_CAP = 500;
+const EMIT_RATE  = 4;
+
+// ── Colour factory ───────────────────────────────────────────────────────────
 function makeColorFn(stops) {
-  return function(t) {
+  return t => {
     t = Math.max(0, Math.min(1, t));
     for (let i = 0; i < stops.length - 1; i++) {
-      const [t0, c0] = stops[i];
-      const [t1, c1] = stops[i + 1];
+      const [t0, c0] = stops[i], [t1, c1] = stops[i + 1];
       if (t >= t1 && t <= t0) {
         const f = (t - t1) / (t0 - t1 + 1e-6);
         return c1.map((v, k) => v + (c0[k] - v) * f);
@@ -216,432 +154,555 @@ function makeColorFn(stops) {
   };
 }
 
-const flameColor  = makeColorFn(STOPS);
+const flameColor = makeColorFn([
+  [1.00, [255, 255, 255]], [0.80, [255, 255, 180]], [0.55, [255, 200, 0]],
+  [0.30, [255, 90, 0]],   [0.10, [160, 20, 0]],    [0.00, [10, 10, 10]],
+]);
+const candleColor = makeColorFn([
+  [1.00, [255, 255, 220]], [0.70, [255, 210, 60]], [0.40, [255, 130, 10]],
+  [0.18, [80, 60, 240]],   [0.00, [15, 8, 80]],
+]);
+const lightningColor = makeColorFn([
+  [1.00, [255, 255, 255]], [0.75, [210, 235, 255]], [0.45, [120, 190, 255]],
+  [0.15, [50, 80, 220]],   [0.00, [10, 15, 80]],
+]);
 
-// ── Candle colour gradient (blue base → gold → ivory tip) ────────────────────
-const CANDLE_STOPS = [
-  [1.00, [255, 255, 220]],   // ivory white tip
-  [0.70, [255, 210,  60]],   // golden yellow
-  [0.40, [255, 130,  10]],   // warm orange
-  [0.18, [ 80,  60, 240]],   // blue inner cone
-  [0.00, [ 15,   8,  80]],   // deep violet base
-];
-const candleColor = makeColorFn(CANDLE_STOPS);
+// ── Render helpers ───────────────────────────────────────────────────────────
+function rgbaStr([r, g, b], a) { return `rgba(${r|0},${g|0},${b|0},${a.toFixed(3)})`; }
 
-function rgbaStr([r, g, b], a) {
-  return `rgba(${r | 0},${g | 0},${b | 0},${a.toFixed(3)})`;
-}
-
-// ── Additive radial splat ────────────────────────────────────────────────────
 function splat(ctx, x, y, radius, color, alpha) {
   if (radius <= 0 || alpha <= 0) return;
   const g = ctx.createRadialGradient(x, y, 0, x, y, radius);
   g.addColorStop(0, rgbaStr(color, alpha));
   g.addColorStop(1, rgbaStr(color, 0));
   ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
 }
 
 // ── Particle ─────────────────────────────────────────────────────────────────
 class Particle {
-  constructor(x, y, vx, vy, life, r0, colorFn = flameColor) {
-    this.x = x; this.y = y;
-    this.vx = vx; this.vy = vy;
-    this.life = this.maxLife = life;
-    this.r0 = r0;
-    this.colorFn = colorFn;
+  constructor(x, y, vx, vy, life, r0, colorFn = flameColor, buoyancy = 45, turbulence = 35) {
+    this.x = x; this.y = y; this.vx = vx; this.vy = vy;
+    this.life = this.maxLife = life; this.r0 = r0;
+    this.colorFn = colorFn; this.buoyancy = buoyancy; this.turbulence = turbulence;
     this.phase = Math.random() * Math.PI * 2;
   }
   update(dt, t) {
-    this.vy -= 45 * dt;
-    this.vx += Math.sin(t * 4 + this.phase) * 35 * dt;
-    this.vx *= 0.98;
-    this.x  += this.vx * dt;
-    this.y  += this.vy * dt;
-    this.life -= dt;
-    return this.life > 0;
+    this.vy -= this.buoyancy * dt;
+    this.vx += Math.sin(t * 4 + this.phase) * this.turbulence * dt;
+    this.vx *= 0.98; this.x += this.vx * dt; this.y += this.vy * dt;
+    this.life -= dt; return this.life > 0;
   }
   draw(ctx) {
-    const t      = Math.max(0, this.life / this.maxLife);
-    const radius = this.r0 * (0.3 + 0.7 * t);
-    const alpha  = Math.pow(t, 0.6);
-    splat(ctx, this.x, this.y, radius, this.colorFn(t), alpha);
+    const t = Math.max(0, this.life / this.maxLife);
+    splat(ctx, this.x, this.y, this.r0 * (0.3 + 0.7 * t), this.colorFn(t), Math.pow(t, 0.6));
+  }
+}
+
+// ── Ember (gravity + floor bounce) ───────────────────────────────────────────
+class Ember {
+  constructor(x, y, vx, vy) {
+    this.x = x; this.y = y; this.vx = vx; this.vy = vy;
+    this.life = 0.6 + Math.random() * 0.9; this.maxLife = this.life;
+    this.r = 2 + Math.random() * 3.5; this.bounces = 0;
+  }
+  update(dt, H) {
+    this.vy += 820 * dt; this.vx *= 0.995;
+    this.x += this.vx * dt; this.y += this.vy * dt;
+    if (this.y > H - 6 && this.bounces < 3) {
+      this.y = H - 6;
+      this.vy *= -(0.28 + Math.random() * 0.18);
+      this.vx += (Math.random() - 0.5) * 25;
+      this.bounces++;
+    }
+    this.life -= dt;
+    return this.life > 0 && Math.abs(this.x) < window.innerWidth + 30;
+  }
+  draw(ctx) {
+    const t = this.life / this.maxLife;
+    splat(ctx, this.x, this.y, this.r * t, flameColor(t * 0.45), t * 0.85);
+  }
+}
+
+// ── Shockwave ring ───────────────────────────────────────────────────────────
+class Shockwave {
+  constructor(x, y, maxR, color = [255, 160, 50]) {
+    this.x = x; this.y = y; this.maxR = maxR; this.color = color;
+    this.life = 0.48; this.maxLife = 0.48; this.alive = true;
+  }
+  update(dt) { this.life -= dt; this.alive = this.life > 0; return this.alive; }
+  draw(ctx) {
+    const t = this.life / this.maxLife;
+    const r = (1 - t) * this.maxR;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = rgbaStr(this.color, t * 0.22); ctx.lineWidth = 12 * t;
+    ctx.beginPath(); ctx.arc(this.x, this.y, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = rgbaStr(this.color, t * 0.75); ctx.lineWidth = 2 * t + 0.5;
+    ctx.beginPath(); ctx.arc(this.x, this.y, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
   }
 }
 
 // ── Projectile ───────────────────────────────────────────────────────────────
 class Projectile {
   constructor(x, y, vx, vy, r) {
-    this.x = x; this.y = y;
-    this.vx = vx; this.vy = vy;
-    this.r = r;
-    this.life = 1.6;
-    this.alive = true;
+    this.x = x; this.y = y; this.vx = vx; this.vy = vy;
+    this.r = r; this.life = 1.8; this.alive = true;
   }
-  update(dt, W, H, particles, cap = PARTICLE_CAP) {
-    this.cap = cap;
-    this.vy += GRAVITY * dt;
-    this.x  += this.vx * dt;
-    this.y  += this.vy * dt;
-    this.life -= dt;
+  update(dt, W, H, particles, cap) {
+    this.vy += GRAVITY * dt; this.x += this.vx * dt; this.y += this.vy * dt; this.life -= dt;
     for (let i = 0; i < 2; i++) {
-      if (particles.length < this.cap) {
+      if (particles.length < cap) {
         particles.push(new Particle(
-          this.x + (Math.random() - 0.5) * 8,
-          this.y + (Math.random() - 0.5) * 8,
-          -this.vx * 0.12 + (Math.random() - 0.5) * 80,
-          -this.vy * 0.12 + (Math.random() - 0.5) * 80,
-          0.2 + Math.random() * 0.3,
-          this.r * 0.5,
+          this.x + (Math.random() - 0.5) * 8, this.y + (Math.random() - 0.5) * 8,
+          -this.vx * 0.10 + (Math.random() - 0.5) * 80,
+          -this.vy * 0.10 + (Math.random() - 0.5) * 80,
+          0.2 + Math.random() * 0.25, this.r * 0.45,
         ));
       }
     }
-    if (this.life <= 0 || this.x < -60 || this.x > W + 60 || this.y > H + 60)
-      this.alive = false;
+    if (this.life <= 0 || this.x < -60 || this.x > W + 60 || this.y > H + 60) this.alive = false;
   }
   draw(ctx) {
-    splat(ctx, this.x, this.y, this.r * 1.6, [255,  90,  0], 0.30);
+    splat(ctx, this.x, this.y, this.r * 1.7, [255,  90,  0], 0.28);
     splat(ctx, this.x, this.y, this.r * 1.1, [255, 160,  0], 0.50);
-    splat(ctx, this.x, this.y, this.r * 0.6, [255, 255, 200], 0.85);
+    splat(ctx, this.x, this.y, this.r * 0.6, [255, 255, 200], 0.92);
   }
 }
 
-function spawnExplosion(particles, x, y, n = 40) {
-  for (let i = 0; i < n; i++) {
-    if (particles.length >= PARTICLE_CAP) break;
-    const ang   = Math.random() * Math.PI * 2;
-    const speed = 80 + Math.random() * 300;
-    particles.push(new Particle(
-      x, y,
-      Math.cos(ang) * speed,
-      Math.sin(ang) * speed - 60,
-      0.3 + Math.random() * 0.4,
-      6   + Math.random() * 8,
-    ));
+// ── Lightning bolt (jagged line on fxCtx) ────────────────────────────────────
+function drawLightningBolt(ctx, x1, y1, x2, y2, alpha = 0.9) {
+  const segs = 12;
+  const len  = Math.hypot(x2 - x1, y2 - y1);
+  const off  = len * 0.16;
+  const pts  = [[x1, y1]];
+  for (let i = 1; i < segs; i++) {
+    pts.push([
+      x1 + (x2 - x1) * (i / segs) + (Math.random() - 0.5) * off,
+      y1 + (y2 - y1) * (i / segs) + (Math.random() - 0.5) * off,
+    ]);
   }
+  pts.push([x2, y2]);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.strokeStyle = `rgba(80,160,255,${(alpha * 0.28).toFixed(3)})`; ctx.lineWidth = 12;
+  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.stroke();
+  ctx.strokeStyle = `rgba(160,210,255,${(alpha * 0.55).toFixed(3)})`; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.stroke();
+  ctx.strokeStyle = `rgba(240,250,255,${alpha.toFixed(3)})`; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.stroke();
+  ctx.restore();
 }
 
-function drawCore(ctx, x, y, r) {
-  splat(ctx, x, y, r * 1.8, [140,  60,  0], 0.16);
-  splat(ctx, x, y, r * 1.3, [200, 110,  0], 0.26);
-  splat(ctx, x, y, r * 0.9, [255, 170,  0], 0.42);
-  splat(ctx, x, y, r * 0.5, [255, 240, 180], 0.85);
-}
-
+// ── Gesture detection ────────────────────────────────────────────────────────
 function isFist(lm) {
   for (let i = 0; i < FINGER_TIPS.length; i++)
     if (lm[FINGER_TIPS[i]].y < lm[FINGER_PIPS[i]].y) return false;
   return true;
 }
-
-// Only index finger extended, rest curled → candle mode
 function isOneFingerUp(lm) {
-  if (lm[FINGER_TIPS[0]].y >= lm[FINGER_PIPS[0]].y) return false; // index must be up
+  if (lm[FINGER_TIPS[0]].y >= lm[FINGER_PIPS[0]].y) return false;
   for (let i = 1; i < FINGER_TIPS.length; i++)
-    if (lm[FINGER_TIPS[i]].y < lm[FINGER_PIPS[i]].y) return false; // others must be curled
+    if (lm[FINGER_TIPS[i]].y < lm[FINGER_PIPS[i]].y) return false;
   return true;
 }
-
-// Palm center: average of wrist + 4 MCP knuckles (normalized coords)
+function isTwoFingersUp(lm) {
+  if (lm[FINGER_TIPS[0]].y >= lm[FINGER_PIPS[0]].y) return false;
+  if (lm[FINGER_TIPS[1]].y >= lm[FINGER_PIPS[1]].y) return false;
+  if (lm[FINGER_TIPS[2]].y <  lm[FINGER_PIPS[2]].y) return false;
+  if (lm[FINGER_TIPS[3]].y <  lm[FINGER_PIPS[3]].y) return false;
+  return true;
+}
+function detectMode(lm) {
+  if (isFist(lm))         return 'fist';
+  if (isOneFingerUp(lm))  return 'candle';
+  if (isTwoFingersUp(lm)) return 'lightning';
+  return 'fireball';
+}
 function palmCenter(lm) {
-  const x = PALM_IDS.reduce((s, i) => s + lm[i].x, 0) / PALM_IDS.length;
-  const y = PALM_IDS.reduce((s, i) => s + lm[i].y, 0) / PALM_IDS.length;
-  return { x, y };
+  return {
+    x: PALM_IDS.reduce((s, i) => s + lm[i].x, 0) / PALM_IDS.length,
+    y: PALM_IDS.reduce((s, i) => s + lm[i].y, 0) / PALM_IDS.length,
+  };
 }
 
-// Candle core: blue base → golden middle → ivory tip (teardrop shape)
+// ── Draw cores ───────────────────────────────────────────────────────────────
+function drawCore(ctx, x, y, r) {
+  splat(ctx, x, y, r * 2.0, [120, 50,   0], 0.14);
+  splat(ctx, x, y, r * 1.4, [200, 110,  0], 0.28);
+  splat(ctx, x, y, r * 0.9, [255, 170,  0], 0.44);
+  splat(ctx, x, y, r * 0.5, [255, 245, 180], 0.90);
+}
 function drawCandleCore(ctx, x, y, r) {
-  splat(ctx, x,           y,           r * 0.35, [ 60,  40, 255], 0.70); // blue base
-  splat(ctx, x,           y,           r * 0.20, [180, 160, 255], 0.90); // bright blue
-  splat(ctx, x,           y - r * 0.5, r * 0.50, [255, 180,  20], 0.55); // golden middle
-  splat(ctx, x,           y - r * 0.9, r * 0.35, [255, 240, 180], 0.75); // ivory tip
-  splat(ctx, x,           y - r * 0.9, r * 0.18, [255, 255, 255], 0.95); // white hot point
+  splat(ctx, x, y,           r * 0.38, [ 60,  40, 255], 0.72);
+  splat(ctx, x, y,           r * 0.22, [180, 160, 255], 0.92);
+  splat(ctx, x, y - r * 0.5, r * 0.52, [255, 185,  20], 0.56);
+  splat(ctx, x, y - r * 0.9, r * 0.38, [255, 245, 180], 0.78);
+  splat(ctx, x, y - r * 0.9, r * 0.18, [255, 255, 255], 0.96);
+}
+function drawLightningCore(ctx, x, y, r) {
+  splat(ctx, x, y, r * 1.4, [ 40,  90, 255], 0.22);
+  splat(ctx, x, y, r * 0.8, [140, 200, 255], 0.58);
+  splat(ctx, x, y, r * 0.35,[240, 250, 255], 0.96);
+}
+
+// ── Hand skeleton overlay ────────────────────────────────────────────────────
+function drawHandSkeleton(ctx, lm, lmX, lmY, mode) {
+  const modeColor = {
+    fireball:  'rgba(255,120,30,0.28)',
+    candle:    'rgba(255,210,80,0.28)',
+    lightning: 'rgba(120,200,255,0.32)',
+    fist:      'rgba(255,255,255,0.18)',
+  };
+  const color = modeColor[mode] ?? 'rgba(255,255,255,0.2)';
+  ctx.save(); ctx.globalCompositeOperation = 'source-over';
+  ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (const [a, b] of HAND_CONNECTIONS) {
+    ctx.moveTo(lmX(lm[a].x), lmY(lm[a].y));
+    ctx.lineTo(lmX(lm[b].x), lmY(lm[b].y));
+  }
+  ctx.stroke();
+  ctx.fillStyle = color;
+  for (const i of FINGER_TIPS) {
+    ctx.beginPath(); ctx.arc(lmX(lm[i].x), lmY(lm[i].y), 3, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ── Explosion spawn ───────────────────────────────────────────────────────────
+function spawnExplosion(particles, embers, shockwaves, x, y, r, cap) {
+  for (let i = 0; i < 55; i++) {
+    if (particles.length >= cap) break;
+    const ang = Math.random() * Math.PI * 2, spd = 80 + Math.random() * 380;
+    particles.push(new Particle(x, y, Math.cos(ang)*spd, Math.sin(ang)*spd - 60,
+      0.3 + Math.random() * 0.5, 5 + Math.random() * 12));
+  }
+  for (let i = 0; i < 30; i++) {
+    const ang = Math.random() * Math.PI * 2, spd = 60 + Math.random() * 220;
+    embers.push(new Ember(x, y, Math.cos(ang)*spd, Math.sin(ang)*spd - 200));
+  }
+  shockwaves.push(new Shockwave(x, y, r * 9, [255, 155, 40]));
+}
+
+// ── Sound Engine (Web Audio, no external files) ───────────────────────────────
+class SoundEngine {
+  constructor() { this.ac = null; this.fireGain = null; this.fireSrc = null; }
+  _init() {
+    if (this.ac) return true;
+    try { this.ac = new (window.AudioContext || window.webkitAudioContext)(); return true; }
+    catch { return false; }
+  }
+  _noise(sec) {
+    const sr = this.ac.sampleRate, buf = this.ac.createBuffer(1, sr*sec|0, sr);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const src = this.ac.createBufferSource(); src.buffer = buf; return src;
+  }
+  startFire() {
+    if (!this._init() || this.fireSrc) return;
+    const sr = this.ac.sampleRate, dur = 3;
+    const buf = this.ac.createBuffer(1, sr*dur, sr), d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    this.fireSrc = this.ac.createBufferSource();
+    this.fireSrc.buffer = buf; this.fireSrc.loop = true;
+    const f1 = this.ac.createBiquadFilter(); f1.type = 'bandpass'; f1.frequency.value = 380; f1.Q.value = 0.6;
+    const f2 = this.ac.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = 900;
+    this.fireGain = this.ac.createGain(); this.fireGain.gain.value = 0;
+    const lfo = this.ac.createOscillator(), lfoG = this.ac.createGain();
+    lfo.frequency.value = 7; lfoG.gain.value = 0.025;
+    lfo.connect(lfoG); lfoG.connect(this.fireGain.gain);
+    this.fireSrc.connect(f1); f1.connect(f2); f2.connect(this.fireGain);
+    this.fireGain.connect(this.ac.destination);
+    this.fireSrc.start(); lfo.start();
+  }
+  setFireVol(v) { if (this.fireGain) this.fireGain.gain.setTargetAtTime(v*0.055, this.ac.currentTime, 0.12); }
+  stopFire()    { if (this.fireGain) this.fireGain.gain.setTargetAtTime(0, this.ac.currentTime, 0.25); }
+  playThrow() {
+    if (!this._init()) return;
+    const now = this.ac.currentTime, osc = this.ac.createOscillator(), g = this.ac.createGain();
+    osc.type = 'sawtooth'; osc.frequency.setValueAtTime(260, now); osc.frequency.exponentialRampToValueAtTime(38, now+0.38);
+    g.gain.setValueAtTime(0.22, now); g.gain.exponentialRampToValueAtTime(0.001, now+0.38);
+    osc.connect(g); g.connect(this.ac.destination); osc.start(); osc.stop(now+0.38);
+  }
+  playExplosion() {
+    if (!this._init()) return;
+    const now = this.ac.currentTime;
+    const o = this.ac.createOscillator(), og = this.ac.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(75, now); o.frequency.exponentialRampToValueAtTime(18, now+0.45);
+    og.gain.setValueAtTime(0.5, now); og.gain.exponentialRampToValueAtTime(0.001, now+0.45);
+    o.connect(og); og.connect(this.ac.destination); o.start(); o.stop(now+0.45);
+    const n = this._noise(0.32), f = this.ac.createBiquadFilter(), ng = this.ac.createGain();
+    f.type = 'lowpass'; f.frequency.value = 700;
+    ng.gain.setValueAtTime(0.55, now); ng.gain.exponentialRampToValueAtTime(0.001, now+0.32);
+    n.connect(f); f.connect(ng); ng.connect(this.ac.destination); n.start(); n.stop(now+0.32);
+  }
+  playLightning() {
+    if (!this._init()) return;
+    const now = this.ac.currentTime, n = this._noise(0.12), f = this.ac.createBiquadFilter(), g = this.ac.createGain();
+    f.type = 'highpass'; f.frequency.value = 3500;
+    g.gain.setValueAtTime(0.28, now); g.gain.exponentialRampToValueAtTime(0.001, now+0.12);
+    n.connect(f); f.connect(g); g.connect(this.ac.destination); n.start(); n.stop(now+0.12);
+  }
 }
 
 const lerp  = (a, b, t) => a + (b - a) * t;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-// ── Main ─────────────────────────────────────────────────────────────────────
+// ── MAIN ─────────────────────────────────────────────────────────────────────
 async function main() {
   const loadingEl  = document.getElementById('loading');
   const loadingMsg = document.getElementById('loading-msg');
   const statusEl   = document.getElementById('status');
   const pcountEl   = document.getElementById('particle-count');
+  const flashEl    = document.getElementById('flash');
   const video      = document.getElementById('video');
   const mainCanvas = document.getElementById('main-canvas');
   const fxCanvas   = document.getElementById('fxLayer');
   const mainCtx    = mainCanvas.getContext('2d');
   const fxCtx      = fxCanvas.getContext('2d');
 
-  function resize() {
-    mainCanvas.width  = fxCanvas.width  = window.innerWidth;
-    mainCanvas.height = fxCanvas.height = window.innerHeight;
-  }
+  const sound = new SoundEngine();
+  const initAudio = () => { sound._init(); sound.startFire(); };
+  document.addEventListener('click',      initAudio, { once: true });
+  document.addEventListener('touchstart', initAudio, { once: true });
+
+  function resize() { mainCanvas.width = fxCanvas.width = window.innerWidth; mainCanvas.height = fxCanvas.height = window.innerHeight; }
   resize();
   window.addEventListener('resize', resize);
 
-  // Load MediaPipe
-  loadingMsg.textContent = 'Downloading vision model (~8 MB, first load only)…';
+  // MediaPipe
+  loadingMsg.textContent = 'Downloading vision model (~8 MB)…';
   const vision = await FilesetResolver.forVisionTasks(
     "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
   );
   const landmarker = await HandLandmarker.createFromOptions(vision, {
     baseOptions: {
-      modelAssetPath:
-        "https://storage.googleapis.com/mediapipe-models/hand_landmarker/" +
-        "hand_landmarker/float16/1/hand_landmarker.task",
+      modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
       delegate: "GPU",
     },
-    runningMode: "VIDEO",
-    numHands: 1,
-    minHandDetectionConfidence: 0.6,
-    minTrackingConfidence: 0.6,
+    runningMode: "VIDEO", numHands: 1,
+    minHandDetectionConfidence: 0.6, minTrackingConfidence: 0.6,
   });
 
   // Camera
-  loadingMsg.textContent = 'Requesting camera access…';
+  loadingMsg.textContent = 'Requesting camera…';
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: 'user',
-        width:  { ideal: 1280 },
-        height: { ideal: 720 },
-      },
-      audio: false,
+      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false,
     });
   } catch {
-    loadingMsg.textContent = '❌ Camera access denied — please allow camera and reload.';
-    return;
+    loadingMsg.textContent = '❌ Camera access denied — please allow and reload.'; return;
   }
   video.srcObject = stream;
   await new Promise(r => { video.onloadedmetadata = r; });
   await video.play();
-
   loadingEl.classList.add('hidden');
   setTimeout(() => loadingEl.remove(), 700);
 
-  // Tune particle cap for mobile (keep 60fps)
   const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-  const particleCap = isMobile ? 220 : PARTICLE_CAP;
+  const particleCap = isMobile ? 260 : PARTICLE_CAP;
 
   // State
-  let particles   = [];
-  let projectiles = [];
+  let particles = [], embers = [], projectiles = [], shockwaves = [];
   let smoothX = null, smoothY = null, smoothR = 0;
-  let prevSX  = null, prevSY  = null;
-  let velX = 0, velY = 0;
-  let holding     = false;
-  let candleOn    = false;   // candle mode active
+  let prevSX = null, prevSY = null, velX = 0, velY = 0;
+  let mode = 'nohand';
   let candleX = 0, candleY = 0;
-  let lastTime    = performance.now();
-  let lastVidTime = -1;
+  let ltX1 = 0, ltY1 = 0, ltX2 = 0, ltY2 = 0;
+  let flashAlpha = 0, lightSoundCd = 0;
+  let lastTime = performance.now(), lastVidTime = -1;
 
-  // Render loop
+  // ── Loop ──────────────────────────────────────────────────────────────────
   function loop(now) {
     requestAnimationFrame(loop);
-
     const dt = clamp((now - lastTime) / 1000, 0.001, 0.05);
     lastTime = now;
-    const t  = now / 1000;
-    const W  = mainCanvas.width;
-    const H  = mainCanvas.height;
+    const t = now / 1000;
+    const W = mainCanvas.width, H = mainCanvas.height;
 
-    // ── Cover-mode video geometry ──────────────────────────────────────────
-    // Compute source-crop so the video fills the canvas without distortion
-    // (same as CSS object-fit:cover).  Landmarks are then mapped through the
-    // same crop so the fireball sits exactly over the detected hand.
-    const vw = video.videoWidth  || W;
-    const vh = video.videoHeight || H;
-    const vidScale = Math.max(W / vw, H / vh);
-    const srcW = W / vidScale;                   // source crop width  (px)
-    const srcH = H / vidScale;                   // source crop height (px)
-    const srcX = (vw - srcW) / 2;               // source crop x offset
-    const srcY = (vh - srcH) / 2;               // source crop y offset
+    // Cover-mode video geometry
+    const vw = video.videoWidth || W, vh = video.videoHeight || H;
+    const vs = Math.max(W / vw, H / vh);
+    const srcW = W / vs, srcH = H / vs;
+    const srcX = (vw - srcW) / 2, srcY = (vh - srcH) / 2;
+    const lmX = nx => W * (1 - (nx * vw - srcX) / srcW);
+    const lmY = ny => H *      (ny * vh - srcY) / srcH;
 
-    // Convert normalised landmark coord → canvas pixel (cover + mirror)
-    const lmToCanvasX = nx => W * (1 - (nx * vw - srcX) / srcW);
-    const lmToCanvasY = ny => H *      (ny * vh - srcY) / srcH;
-
-    let prevHolding = holding;
-    let status = 'nohand';
+    // Gesture detection
+    let prevHolding = (mode === 'fireball');
+    let detectedLm = null;
+    lightSoundCd -= dt;
 
     if (video.readyState >= 2 && video.currentTime !== lastVidTime) {
       lastVidTime = video.currentTime;
-      const result = landmarker.detectForVideo(video, now);
+      const res = landmarker.detectForVideo(video, now);
 
-      if (result.landmarks && result.landmarks.length > 0) {
-        const lm   = result.landmarks[0];
-        const fist = isFist(lm);
-        const oneUp = isOneFingerUp(lm);
+      if (res.landmarks && res.landmarks.length > 0) {
+        const lm = detectedLm = res.landmarks[0];
+        const gm = detectMode(lm);
 
-        if (oneUp) {
-          // ── Candle mode: index fingertip ────────────────────────────────
-          candleX  = lmToCanvasX(lm[INDEX_TIP].x);
-          candleY  = lmToCanvasY(lm[INDEX_TIP].y);
-          candleOn = true;
-          holding  = false;
-          prevSX   = prevSY = null;
-          status   = 'candle';
-        } else if (!fist) {
-          // ── Fireball mode: palm center ──────────────────────────────────
-          candleOn = false;
+        if (gm === 'candle') {
+          candleX = lmX(lm[INDEX_TIP].x); candleY = lmY(lm[INDEX_TIP].y);
+          mode = 'candle'; prevSX = prevSY = null; sound.stopFire();
+        } else if (gm === 'lightning') {
+          ltX1 = lmX(lm[INDEX_TIP].x); ltY1 = lmY(lm[INDEX_TIP].y);
+          ltX2 = lmX(lm[MIDDLE_TIP].x); ltY2 = lmY(lm[MIDDLE_TIP].y);
+          mode = 'lightning'; prevSX = prevSY = null; sound.stopFire();
+          if (lightSoundCd <= 0) { sound.playLightning(); lightSoundCd = 0.25; }
+        } else if (gm === 'fireball') {
           const pc = palmCenter(lm);
-          const cx = lmToCanvasX(pc.x);
-          const cy = lmToCanvasY(pc.y);
-
-          const pdNorm = Math.hypot(
-            lm[THUMB_TIP].x - lm[INDEX_TIP].x,
-            lm[THUMB_TIP].y - lm[INDEX_TIP].y
-          );
-          const base   = Math.min(W, H);
-          const minR   = base * 0.05;
-          const maxR   = base * 0.20;
-          const tR = clamp(
-            minR + (pdNorm - 0.03) / (0.25 - 0.03) * (maxR - minR),
-            minR, maxR
-          );
-
-          // High lerp factor (0.8) = near-instant tracking, almost no lag
+          const cx = lmX(pc.x), cy = lmY(pc.y);
+          const pdNorm = Math.hypot(lm[THUMB_TIP].x - lm[INDEX_TIP].x, lm[THUMB_TIP].y - lm[INDEX_TIP].y);
+          const base = Math.min(W, H);
+          const tR = clamp(base*0.05 + (pdNorm-0.03)/(0.25-0.03)*(base*0.15), base*0.05, base*0.20);
           smoothX = smoothX === null ? cx : lerp(smoothX, cx, 0.8);
           smoothY = smoothY === null ? cy : lerp(smoothY, cy, 0.8);
-          smoothR = smoothR === 0    ? tR : lerp(smoothR, tR, 0.5);
-
-          if (prevSX !== null) {
-            velX = (smoothX - prevSX) / dt;
-            velY = (smoothY - prevSY) / dt;
-          }
+          smoothR = smoothR === 0 ? tR : lerp(smoothR, tR, 0.5);
+          if (prevSX !== null) { velX = (smoothX - prevSX)/dt; velY = (smoothY - prevSY)/dt; }
           prevSX = smoothX; prevSY = smoothY;
-          holding = true;
-          status  = 'holding';
+          mode = 'fireball'; sound.setFireVol(1);
         } else {
-          // ── Fist: throw or snuff ────────────────────────────────────────
-          candleOn = false;
-          holding  = false;
+          // Fist
           if (prevHolding && prevSX !== null) {
             const speed = Math.hypot(velX, velY);
             if (speed > THROW_SPEED_THRESHOLD) {
-              projectiles.push(new Projectile(smoothX, smoothY, velX * THROW_MULT, velY * THROW_MULT, smoothR));
-              status = 'thrown';
+              projectiles.push(new Projectile(smoothX, smoothY, velX*THROW_MULT, velY*THROW_MULT, smoothR));
+              sound.playThrow(); flashAlpha = 0.18; mode = 'thrown';
             } else {
-              status = 'snuffed';
+              mode = 'snuffed';
             }
-          } else {
-            status = 'fist';
-          }
-          prevSX = prevSY = null;
+          } else { mode = 'fist'; }
+          prevSX = prevSY = null; sound.stopFire();
         }
       } else {
-        holding  = false;
-        candleOn = false;
-        prevSX   = prevSY = null;
+        prevSX = prevSY = null; sound.stopFire(); mode = 'nohand';
       }
     }
 
-    // Draw video in cover-mode (no distortion, centered crop)
-    mainCtx.save();
-    mainCtx.translate(W, 0);
-    mainCtx.scale(-1, 1);
+    // 1. Draw mirrored video (cover mode)
+    mainCtx.save(); mainCtx.translate(W, 0); mainCtx.scale(-1, 1);
     mainCtx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, W, H);
     mainCtx.restore();
 
-    // Clear FX canvas
+    // 2. Hand skeleton overlay
+    if (detectedLm) drawHandSkeleton(mainCtx, detectedLm, lmX, lmY, mode);
+
+    // 3. FX layer (additive)
     fxCtx.clearRect(0, 0, W, H);
     fxCtx.globalCompositeOperation = 'lighter';
 
-    // Emit + draw core
-    if (holding && smoothX !== null) {
+    // Fireball mode
+    if (mode === 'fireball' && smoothX !== null) {
       for (let i = 0; i < EMIT_RATE; i++) {
         if (particles.length < particleCap) {
           particles.push(new Particle(
             smoothX + (Math.random() - 0.5) * smoothR * 0.6,
             smoothY + (Math.random() - 0.5) * smoothR * 0.6,
-            (Math.random() - 0.5) * 55,
-            -110 + Math.random() * 70,
-            0.35 + Math.random() * 0.35,
-            smoothR * 0.55,
+            (Math.random() - 0.5) * 55, -115 + Math.random() * 75,
+            0.35 + Math.random() * 0.35, smoothR * 0.55,
           ));
         }
       }
+      // Ambient pulse ring
+      const pulse = 0.6 + 0.4 * Math.sin(t * 3.5);
+      splat(fxCtx, smoothX, smoothY, smoothR * 2.2 * pulse, [255, 80, 0], 0.05);
       drawCore(fxCtx, smoothX, smoothY, smoothR);
     }
 
-    // Candle flame: small delicate particles at fingertip
-    if (candleOn) {
-      const cr = Math.min(W, H) * 0.04;  // candle flame radius
+    // Candle mode
+    if (mode === 'candle') {
+      const cr = Math.min(W, H) * 0.042;
       for (let i = 0; i < 2; i++) {
         if (particles.length < particleCap) {
           particles.push(new Particle(
             candleX + (Math.random() - 0.5) * cr * 0.3,
             candleY + (Math.random() - 0.5) * cr * 0.2,
-            (Math.random() - 0.5) * 12,        // gentle drift
-            -55 + Math.random() * 20,           // rises upward
-            0.25 + Math.random() * 0.25,
-            cr * 0.4,
-            candleColor,                        // blue-gold gradient
+            (Math.random() - 0.5) * 10, -58 + Math.random() * 22,
+            0.28 + Math.random() * 0.28, cr * 0.42,
+            candleColor, 30, 15,
           ));
         }
       }
       drawCandleCore(fxCtx, candleX, candleY, cr);
     }
 
-    // Particles
-    particles = particles.filter(p => {
-      const alive = p.update(dt, t);
-      if (alive) p.draw(fxCtx);
-      return alive;
-    });
+    // Lightning mode
+    if (mode === 'lightning') {
+      const mx = (ltX1 + ltX2) / 2, my = (ltY1 + ltY2) / 2;
+      const lr = Math.min(W, H) * 0.028;
+      drawLightningBolt(fxCtx, ltX1, ltY1, ltX2, ltY2);
+      drawLightningCore(fxCtx, ltX1, ltY1, lr);
+      drawLightningCore(fxCtx, ltX2, ltY2, lr);
+      drawLightningCore(fxCtx, mx, my, lr * 0.6);
+      for (let i = 0; i < 2; i++) {
+        for (const [ex, ey] of [[ltX1, ltY1], [ltX2, ltY2]]) {
+          if (particles.length < particleCap) {
+            particles.push(new Particle(
+              ex + (Math.random() - 0.5) * lr, ey + (Math.random() - 0.5) * lr,
+              (Math.random() - 0.5) * 180, (Math.random() - 0.5) * 180,
+              0.08 + Math.random() * 0.14, lr * 0.5,
+              lightningColor, 0, 60,
+            ));
+          }
+        }
+      }
+    }
+
+    // Particles, embers, shockwaves
+    particles  = particles.filter(p  => { const a = p.update(dt, t);  if (a) p.draw(fxCtx);  return a; });
+    embers     = embers.filter(e     => { const a = e.update(dt, H);  if (a) e.draw(fxCtx);  return a; });
+    shockwaves = shockwaves.filter(sw => { const a = sw.update(dt);   if (a) sw.draw(fxCtx); return a; });
 
     // Projectiles
     const surviving = [];
     for (const proj of projectiles) {
       proj.update(dt, W, H, particles, particleCap);
       if (proj.alive) { proj.draw(fxCtx); surviving.push(proj); }
-      else spawnExplosion(particles, proj.x, proj.y);
+      else {
+        spawnExplosion(particles, embers, shockwaves, proj.x, proj.y, proj.r, particleCap);
+        sound.playExplosion(); flashAlpha = 0.22;
+      }
     }
     projectiles = surviving;
 
-    // Composite: fire layer with screen blend
+    // 4. Composite FX (screen blend)
     mainCtx.globalCompositeOperation = 'screen';
     mainCtx.drawImage(fxCanvas, 0, 0);
-
-    // Bloom pass
-    mainCtx.save();
-    mainCtx.globalCompositeOperation = 'screen';
-    mainCtx.globalAlpha = 0.4;
-    mainCtx.filter = 'blur(14px)';
-    mainCtx.drawImage(fxCanvas, 0, 0);
-    mainCtx.restore();
-
-    mainCtx.filter = 'none';
     mainCtx.globalCompositeOperation = 'source-over';
-    mainCtx.globalAlpha = 1;
 
-    // HUD
-    const map = {
-      holding: ['🔥 Holding',  'holding'],
-      thrown:  ['💥 Thrown!',  'thrown'],
-      snuffed: ['💨 Snuffed',  'snuffed'],
-      candle:  ['🕯 Candle',   'holding'],
-      fist:    ['✊ Fist',     ''],
-      nohand:  ['👁 No Hand',  ''],
+    // 5. Screen flash
+    if (flashAlpha > 0.005) {
+      flashEl.style.opacity = flashAlpha.toFixed(3);
+      flashAlpha = lerp(flashAlpha, 0, 1 - Math.pow(0.01, dt));
+    } else { flashEl.style.opacity = '0'; flashAlpha = 0; }
+
+    // 6. HUD
+    const labels = {
+      fireball:  ['🔥 Holding',  'holding'],
+      candle:    ['🕯 Candle',   'candle'],
+      lightning: ['⚡ Lightning', 'lightning'],
+      thrown:    ['💥 Thrown!',  'thrown'],
+      snuffed:   ['💨 Snuffed',  'snuffed'],
+      fist:      ['✊ Fist',     ''],
+      nohand:    ['👁 No Hand',  ''],
     };
-    const [label, cls] = map[status] ?? map.nohand;
-    statusEl.textContent = label;
-    statusEl.className   = cls;
-    pcountEl.textContent = `${particles.length} particles`;
+    const [label, cls] = labels[mode] ?? labels.nohand;
+    if (statusEl.textContent !== label) statusEl.textContent = label;
+    ['holding','candle','lightning','thrown','snuffed'].forEach(c => statusEl.classList.toggle(c, c === cls));
+    pcountEl.textContent = `${particles.length + embers.length} particles`;
   }
 
   requestAnimationFrame(loop);
 }
-
-main().catch(err => {
-  const msg = document.getElementById('loading-msg');
-  if (msg) msg.textContent = '❌ ' + err.message;
-  console.error(err);
-});
+main();
 </script>
 </body>
 </html>
